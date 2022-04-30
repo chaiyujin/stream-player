@@ -1,4 +1,5 @@
 import os
+import time
 
 import glfw
 import imgui
@@ -6,6 +7,27 @@ import numpy as np
 from ffutils import VideoReader
 from imgui.utils.image_texture import ImageTexture
 from OpenGL import GL as gl
+
+from utils import timeit
+from audio_player import AudioPlayer
+
+test_vpath = os.path.expanduser("~/Videos/30fps.mp4")
+test_vpath = os.path.expanduser("~/Videos/love_poem.mp4")
+
+ap = None
+ap = AudioPlayer()
+ap.open(test_vpath)
+
+
+def format_time(msec):
+    sec = msec / 1000.0
+    h = int(sec / 3600)
+    sec -= h * 3600
+    m = int(sec / 60)
+    sec -= m * 60
+    s = int(sec)
+    ms = sec - s
+    return f"{h:02d}:{m:02d}:{s:02d}" + f"{ms:.3f}"[1:]
 
 
 def test_imgui(window):
@@ -16,11 +38,12 @@ def test_imgui(window):
     imgui.impl_init(window)
 
     img_tex = ImageTexture()
-    reader = VideoReader(os.path.expanduser("~/Videos/30fps.mp4"))
+    reader = VideoReader(test_vpath)
     reader.seek_msec(0.0)
-    got, im = reader.read()
-    if got:
-        img_tex.update(im, is_bgr=True)
+    duration = reader.duration
+    # fps = reader.fps  # todo
+
+    # init timestamp
     msec = np.asarray([0.0], dtype=np.float32)
 
     def _frame_begin():
@@ -37,21 +60,86 @@ def test_imgui(window):
         imgui.impl_render(imgui.get_draw_data())
         glfw.swap_buffers(window)
 
+    lst_time = 0
+    cur_time = time.time()
+    playing = False
+    seeking = False
     while not glfw.window_should_close(window):
         _frame_begin()
 
-        # seek
+        # update time / audio player
+        if ap is None:
+            if seeking:
+                lst_time = msec[0] / 1000.0
+            else:
+                now_time = time.time()
+                if playing:
+                    lst_time += now_time - cur_time
+                    msec[0] = lst_time * 1000.0
+                cur_time = now_time
+        else:
+            if seeking:
+                ap.pause()
+                ap.seek(msec[0])
+            else:
+                ap.toggle(playing)
+                msec[0] = ap.curr_msec
+
+        # seek video
+        # print(msec[0])
         reader.seek_msec(msec[0])
         got, im = reader.read()
         if got:
             img_tex.update(im, is_bgr=True)
 
-        # draw
+        # imgui video player
+        io = imgui.get_io()
+        style = imgui.get_style()
         imgui.begin("Video", np.asarray([1], dtype=np.uint8))
-        imgui.text("Msec: {:.0f}ms, Frame: {:.0f}".format(msec[0], msec[0] * 30.0 / 1000.0))
+        # info area
+        imgui.text(
+            "Msec: {:.0f}ms, Frame: {:.0f}, Player FPS: {:.1f}".format(
+                msec[0],
+                msec[0] * 30.0 / 1000.0,
+                io.framerate
+            )
+        )
+        # Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+        # compute area for image
+        ctrl_h = imgui.get_frame_height_with_spacing()
+        max_w = imgui.get_window_width() - (style.window_padding.x + style.window_border_size) * 2
+        max_h = imgui.get_window_height() - style.window_padding.y - style.window_border_size - imgui.get_cursor_pos_y() - ctrl_h
+        # image
         if not img_tex.empty():
-            imgui.image(img_tex.id, img_tex.extend)
-        imgui.slider_float("Value", msec, 0.0, 10000.0, "%.0fms")
+            w, h = img_tex.extend
+            # proper position
+            if max_w * h > w * max_h:
+                w = w / h * max_h
+                h = max_h
+            else:
+                h = h / w * max_w
+                w = max_w
+            x = (max_w - w) // 2
+            y = (max_h - h) // 2
+            imgui.set_cursor_pos_x(x + imgui.get_cursor_pos_x())
+            imgui.set_cursor_pos_y(y + imgui.get_cursor_pos_y())
+            imgui.image(img_tex.id, (w, h))
+            imgui.set_cursor_pos_y(y + imgui.get_cursor_pos_y())
+        # control
+        # - play/stop
+        if imgui.button('stop' if playing else 'play'):
+            playing = not playing
+        imgui.same_line()
+        # - time info
+        imgui.text(format_time(msec[0]))
+        imgui.same_line()
+        # - seeker
+        imgui.push_item_width(-1)
+        if imgui.slider_float("##video_player-seeker", msec, 0.0, duration, ""):
+            seeking = True
+        else:
+            seeking = seeking and imgui.is_mouse_down(imgui.ImGuiMouseButton.Left)
+        imgui.pop_item_width()
         imgui.end()
 
         _frame_end()
