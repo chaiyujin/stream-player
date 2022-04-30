@@ -1,28 +1,29 @@
 import os
 
-import cv2
 import glfw
 import imgui
 import numpy as np
 from ffutils import VideoReader
-from imgui import ImRect, ImVec2, ImVec4
-from imgui.extension.image_texture import ImageTexture
+from imgui.utils.image_texture import ImageTexture
 from OpenGL import GL as gl
 
 
 def test_imgui(window):
 
-    imgui_ctx = imgui.CreateContext()
-    imgui.SetCurrentContext(imgui_ctx)
-    imgui.StyleColorsDark()
+    imgui_ctx = imgui.create_context()
+    imgui.set_current_context(imgui_ctx)
+    imgui.style_colors_dark()
     imgui.impl_init(window)
+
+    io = imgui.get_io()
+    io.ini_filename = "imgui_new.ini"
 
     is_open = np.asarray([True], dtype=np.uint8)
     v_float = np.asarray([0.0], dtype=np.float32)
     v_float2 = np.asarray([0.0, 1.0], dtype=np.float32)
 
     img_tex = ImageTexture()
-    reader = VideoReader(os.path.expanduser("~/Videos/30fps.mp4"), "bgr")
+    reader = VideoReader(os.path.expanduser("~/Videos/30fps.mp4"))
 
     count = 0
     while not glfw.window_should_close(window):
@@ -33,34 +34,33 @@ def test_imgui(window):
             img_tex.update(im, is_bgr=True)
 
         imgui.impl_new_frame()
-        imgui.NewFrame()
+        imgui.new_frame()
 
         imgui.demo(is_open)
-        imgui.Begin("haha", np.asarray([1], dtype=np.uint8))
-        imgui.Text("Hello World!")
-        imgui.SliderFloat("Value", v_float, -10.0, 10.0)
-        imgui.SliderFloat2("Value2", v_float2, -10.0, 10.0)
-        imgui.Checkbox("open", is_open)
-        imgui.Image(img_tex.id, img_tex.extend)
-        imgui.End()
+        imgui.begin("haha", np.asarray([1], dtype=np.uint8))
+        imgui.text("Hello World!")
+        imgui.slider_float("Value", v_float, -10.0, 10.0)
+        imgui.slider_float2("Value2", v_float2, -10.0, 10.0)
+        imgui.checkbox("open", is_open)
+        imgui.image(img_tex.id, img_tex.extend)
+        imgui.end()
 
-        imgui.Begin("test", is_open)
-        if imgui.Button("Click {}".format(count)):
+        imgui.begin("test", is_open)
+        if imgui.button("Click {}".format(count)):
             count += 1
-        imgui.End()
+        imgui.end()
 
-        imgui.Render()
+        imgui.render()
         w, h = glfw.get_framebuffer_size(window)
         gl.glViewport(0, 0, w, h)
         gl.glClearColor(0.0, 0.2, 0.2, 0.0)
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
-        imgui.impl_render(imgui.GetDrawData())
+        imgui.impl_render(imgui.get_draw_data())
 
         glfw.swap_buffers(window)
 
     imgui.impl_shutdown()
-    # imgui.destroy_context(imgui_ctx)
-    imgui.DestroyContext(imgui_ctx)
+    imgui.destroy_context(imgui_ctx)
 
 
 def key_callback(window, key, scancode, action, mods):
@@ -91,8 +91,8 @@ def main():
     glfw.swap_interval(1)  # enable vsync
 
     test_imgui(window)
+
     glfw.terminate()
-    print("Terminate")
 
 
 if __name__ == "__main__":
