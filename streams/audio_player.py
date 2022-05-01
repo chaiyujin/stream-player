@@ -1,16 +1,16 @@
-from typing import Optional
-
 import os
 import time
-import pyaudio
+from typing import Optional
+
 import librosa
 import numpy as np
-
+import pyaudio
 from pyaudio import PyAudio, Stream
 
 
 class Singleton(type):
     _instances = {}
+
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
@@ -38,14 +38,24 @@ class AudioPlayer(metaclass=Singleton):
         # reset idx
         self._idx = 0
         self._sr = 0
-    
+
     @property
     def curr_msec(self):
         if self._stream is not None:
             return self._idx * 1000.0 / self._sr
         else:
             return 0.0
-    
+
+    @property
+    def duration(self):
+        if self._stream is not None:
+            return len(self._signal) * 1000.0 / self._sr
+        else:
+            return 0.0
+
+    def is_open(self):
+        return self._stream is not None
+
     def seek(self, msec):
         if self._stream is not None:
             self._idx = int(np.round(self._sr * msec / 1000.0))
@@ -54,8 +64,9 @@ class AudioPlayer(metaclass=Singleton):
         self.reset()
         # TODO: audio reader (using ffmpeg)
         # set the data
-        signal, sr = librosa.load(audio_filepath, sr=48000, mono=False)
-        signal = signal.transpose(1, 0)
+        signal, sr = librosa.load(audio_filepath, sr=None, mono=False)
+        if signal.ndim > 1:
+            signal = signal.transpose(1, 0)
         assert signal.dtype == np.float32
         self._signal = signal
         self._sr = sr
@@ -68,11 +79,11 @@ class AudioPlayer(metaclass=Singleton):
             rate=sr,
             frames_per_buffer=1024,
             output=True,
-            stream_callback=AudioPlayer.stream_callback
+            stream_callback=AudioPlayer.stream_callback,
         )
         self._stream.stop_stream()
         self._idx = 0
-    
+
     def toggle(self, playing):
         if playing:
             self.play()
@@ -88,7 +99,7 @@ class AudioPlayer(metaclass=Singleton):
         if self._stream is not None:
             if not self._stream.is_stopped():
                 self._stream.stop_stream()
-    
+
     def close(self):
         self.reset()
 
@@ -98,7 +109,7 @@ class AudioPlayer(metaclass=Singleton):
     @staticmethod
     def stream_callback(in_data, frame_count, time_info, status):
         ap = AudioPlayer()
-        data = ap._signal[ap._idx: ap._idx + frame_count]
+        data = ap._signal[ap._idx : ap._idx + frame_count]
         ap._idx = ap._idx + frame_count
         return (data.tobytes(), pyaudio.paContinue)
 
