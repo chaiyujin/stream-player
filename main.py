@@ -50,6 +50,19 @@ class ImGuiStreamPlayer(object):
         return dur
 
     def sync_streams(self):
+        # end of audio
+        if self._playing and self._ap.is_open() and self._ap.is_ended():
+            self._playing = False
+            self._ap._ended = False
+
+        # if seeking or paused, we correct timestamp to nearset video frame
+        if self._seeking or (not self._playing):
+            for st in self._visual_streams:
+                st.seek_msec(self._ts[0])
+                ts = st.curr_msec
+                self._ts[0] = ts
+                break
+
         # main clock: time | audio player
         if not self._ap.is_open():
             self._cur_time = time.time()
@@ -63,7 +76,8 @@ class ImGuiStreamPlayer(object):
                 self._ap.seek(self._ts[0])
             else:
                 self._ap.toggle(self._playing)
-                self._ts[0] = self._ap.curr_msec
+                if self._playing:
+                    self._ts[0] = self._ap.curr_msec
 
         # seek visual streams
         for st in self._visual_streams:
@@ -99,8 +113,8 @@ class ImGuiStreamPlayer(object):
         max_h = win_size.y - (win_pads.y + win_brdr) - imgui.get_cursor_pos_y() - ctrl_h
         # image
         st = self._visual_streams[0]  # TODO: multiple streams
-        if not st._tex.empty():
-            w, h = st._tex.extend
+        if not st.texture.empty():
+            w, h = st.texture.extend
             # proper position
             if max_w * h > w * max_h:
                 w = w / h * max_h
@@ -112,15 +126,20 @@ class ImGuiStreamPlayer(object):
             y = (max_h - h) // 2
             imgui.set_cursor_pos_x(x + imgui.get_cursor_pos_x())
             imgui.set_cursor_pos_y(y + imgui.get_cursor_pos_y())
-            imgui.image(st._tex.id, (w, h))
+            imgui.image(st.texture.id, (w, h))
             imgui.set_cursor_pos_y(y + imgui.get_cursor_pos_y())
         else:
             imgui.set_cursor_pos_y(max_h + imgui.get_cursor_pos_y())
 
         # control
         # - time info string, get size here
-        time_info_str = format_time(self._ts[0])
-        time_info_size = imgui.calc_text_size(format_time(self._ts[0]))
+        # - Even though we use audio as main clock, we show the timestamp from fist visual stream.
+        ts = self._ts[0]
+        for st in self._visual_streams:
+            ts = st.curr_msec
+            break
+        time_info_str = format_time(ts)
+        time_info_size = imgui.calc_text_size(time_info_str)
         # - play/stop button
         if imgui.button("stop" if self._playing else "play"):
             self._playing = not self._playing

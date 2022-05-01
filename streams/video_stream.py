@@ -23,6 +23,10 @@ class VideoStream(IVisualStream):
     def extend(self) -> Tuple[int, int]:
         return self._extend
 
+    @property
+    def curr_msec(self) -> float:
+        return self._reader.curr_msec
+
     def seek_msec(self, msec: float):
         self._reader.seek_msec(msec)
 

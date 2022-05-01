@@ -23,6 +23,7 @@ class AudioPlayer(metaclass=Singleton):
         self._sr = 0
         self._pa: PyAudio = PyAudio()
         self._stream: Optional[Stream] = None
+        self._ended = False
         self.reset()
 
     def __del__(self):
@@ -35,6 +36,7 @@ class AudioPlayer(metaclass=Singleton):
                 self._stream.stop_stream()
             self._stream.close()
         self._stream = None
+        self._ended = False
         # reset idx
         self._idx = 0
         self._sr = 0
@@ -52,6 +54,9 @@ class AudioPlayer(metaclass=Singleton):
             return len(self._signal) * 1000.0 / self._sr
         else:
             return 0.0
+
+    def is_ended(self) -> bool:
+        return self._ended
 
     def is_open(self):
         return self._stream is not None
@@ -92,6 +97,7 @@ class AudioPlayer(metaclass=Singleton):
 
     def play(self):
         if self._stream is not None:
+            self._ended = False
             if self._stream.is_stopped():
                 self._stream.start_stream()
 
@@ -111,7 +117,13 @@ class AudioPlayer(metaclass=Singleton):
         ap = AudioPlayer()
         data = ap._signal[ap._idx : ap._idx + frame_count]
         ap._idx = ap._idx + frame_count
-        return (data.tobytes(), pyaudio.paContinue)
+        if ap._idx < len(ap._signal):
+            code = pyaudio.paContinue
+            ap._ended = False
+        else:
+            code = pyaudio.paComplete
+            ap._ended = True
+        return (data.tobytes(), code)
 
 
 if __name__ == "__main__":
