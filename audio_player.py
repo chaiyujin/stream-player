@@ -55,7 +55,8 @@ class AudioPlayer(metaclass=Singleton):
         # TODO: audio reader (using ffmpeg)
         # set the data
         signal, sr = librosa.load(audio_filepath, sr=48000, mono=False)
-        signal = signal.transpose(1, 0)
+        if signal.ndim > 1:
+            signal = signal.transpose(1, 0)
         assert signal.dtype == np.float32
         self._signal = signal
         self._sr = sr

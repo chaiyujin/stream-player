@@ -11,12 +11,8 @@ from OpenGL import GL as gl
 from utils import timeit
 from audio_player import AudioPlayer
 
-test_vpath = os.path.expanduser("~/Videos/30fps.mp4")
-test_vpath = os.path.expanduser("~/Videos/love_poem.mp4")
 
-ap = None
 ap = AudioPlayer()
-ap.open(test_vpath)
 
 
 def format_time(msec):
@@ -30,7 +26,7 @@ def format_time(msec):
     return f"{h:02d}:{m:02d}:{s:02d}" + f"{ms:.3f}"[1:]
 
 
-def test_imgui(window):
+def test_imgui(window, vpath):
 
     imgui_ctx = imgui.create_context()
     imgui.set_current_context(imgui_ctx)
@@ -38,10 +34,12 @@ def test_imgui(window):
     imgui.impl_init(window)
 
     img_tex = ImageTexture()
-    reader = VideoReader(test_vpath)
+    reader = VideoReader(vpath)
     reader.seek_msec(0.0)
     duration = reader.duration
     # fps = reader.fps  # todo
+
+    ap.open(vpath)
 
     # init timestamp
     msec = np.asarray([0.0], dtype=np.float32)
@@ -95,6 +93,8 @@ def test_imgui(window):
         # imgui video player
         io = imgui.get_io()
         style = imgui.get_style()
+        imgui.set_next_window_pos((0, 0))
+        imgui.set_next_window_size(io.display_size)
         imgui.begin("Video", np.asarray([1], dtype=np.uint8))
         # info area
         imgui.text(
@@ -154,7 +154,7 @@ def key_callback(window, key, scancode, action, mods):
         glfw.set_window_should_close(window, True)
 
 
-def main():
+def main(args):
 
     if not glfw.init():
         return
@@ -175,10 +175,15 @@ def main():
     glfw.make_context_current(window)
     glfw.swap_interval(1)  # enable vsync
 
-    test_imgui(window)
+    test_imgui(window, args.path)
 
     glfw.terminate()
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("path", type=str)
+    args = parser.parse_args()
+
+    main(args)
