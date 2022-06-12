@@ -22,3 +22,14 @@ class timeit(object):
             return result
 
         return timed
+
+
+def format_time(msec: float) -> str:
+    t = msec / 1000.0
+    h = int(t / 3600)
+    t -= h * 3600
+    m = int(t / 60)
+    t -= m * 60
+    s = int(t)
+    ms = t - s
+    return f"{h:02d}:{m:02d}:{s:02d}" + f"{ms:.3f}"[1:]
